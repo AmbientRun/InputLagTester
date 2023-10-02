@@ -25,7 +25,7 @@ pub fn main() {
 
 #[derive(Debug, Clone)]
 struct Samples {
-    samples: Vec<f32>,
+    samples: Vec<(Duration, Duration)>,
     total: u32,
     start_time: Duration,
 }
@@ -37,8 +37,8 @@ impl Samples {
             start_time: epoch_time(),
         }
     }
-    fn add(&mut self, sample: f32) {
-        self.samples.push(sample);
+    fn add(&mut self, sent: Duration) {
+        self.samples.push((sent, epoch_time()));
         if self.samples.len() > 10000 {
             self.samples.remove(0);
         }
@@ -57,8 +57,7 @@ fn App(hooks: &mut Hooks) -> Element {
             ServerToClient::subscribe({
                 to_owned!(msg_samples);
                 move |cx, msg| {
-                    let took = (epoch_time() - msg.timestamp).as_secs_f32() * 1000.;
-                    msg_samples.lock().add(took);
+                    msg_samples.lock().add(msg.timestamp);
                 }
             });
             |_| {}
@@ -68,8 +67,7 @@ fn App(hooks: &mut Hooks) -> Element {
         to_owned!(component_samples);
         move |_| {
             if let Some(v) = get_component(player::get_local(), last_message()) {
-                let took = (epoch_time() - v).as_secs_f32() * 1000.;
-                component_samples.lock().add(took);
+                component_samples.lock().add(v);
             }
             redraw();
         }
@@ -84,24 +82,44 @@ fn App(hooks: &mut Hooks) -> Element {
 
 #[element_component]
 fn RenderSamples(hooks: &mut Hooks, samples: Arc<Mutex<Samples>>) -> Element {
-    let (avg, max, last, count, samples_per_second) = {
-        let mut samples = samples.lock();
-        let avg = samples.samples.iter().sum::<f32>() / samples.samples.len() as f32;
-        let max = *samples
+    let (avg, max, last, count, samples_per_second, window_duration) = {
+        let samples = samples.lock();
+        let durations = samples
             .samples
+            .iter()
+            .map(|(sent, received)| (*received - *sent).as_secs_f32() * 1000.)
+            .collect::<Vec<_>>();
+        let avg = durations.iter().sum::<f32>() / durations.len() as f32;
+        let max = *durations
             .iter()
             .max_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap_or(&0.);
-        let last = samples.samples.last().unwrap_or(&0.);
-        let samples_per_second =
-            samples.total as f32 / (epoch_time() - samples.start_time).as_secs_f32();
-        (avg, max, *last, samples.total, samples_per_second)
+        let last = durations.last().unwrap_or(&0.);
+        let first_sent = samples
+            .samples
+            .first()
+            .map(|(sent, _)| *sent)
+            .unwrap_or(epoch_time());
+        let window_duration = (epoch_time() - first_sent);
+        let samples_per_second = samples.samples.len() as f32 / window_duration.as_secs_f32();
+        (
+            avg,
+            max,
+            *last,
+            samples.total,
+            samples_per_second,
+            window_duration,
+        )
     };
     let n_players = use_query(hooks, is_player()).len();
 
     FlowColumn::el([
         Text::el(format!("Players: {}", n_players)),
         Text::el(format!("Samples: {}", count)),
+        Text::el(format!(
+            "Samples window duration: {} sec",
+            window_duration.as_secs_f32()
+        )),
         Text::el(format!("Samples per second: {}", samples_per_second)),
         Text::el(format!("Last: {}ms", last)),
         Text::el(format!("Avg: {}ms", avg)),
