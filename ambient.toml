@@ -1,0 +1,10 @@
+[package]
+id = "uv5rat3i6rymm2qjsgss6ok5hz2aypk7"
+name = "input_lag_tester"
+version = "0.0.1"
+content = { type = "Playable" }
+ambient_version = "0.3.0-nightly-2023-10-02"
+
+[messages]
+ClientToServer = { fields = { timestamp = "Duration", index = "I32" } }
+ServerToClient = { fields = { timestamp = "Duration", index = "I32" } }
