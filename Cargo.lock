@@ -882,6 +882,7 @@ name = "input_lag_tester"
 version = "0.0.1"
 dependencies = [
  "ambient_api",
+ "parking_lot",
 ]
 
 [[package]]

@@ -7,6 +7,7 @@ version = "0.0.1"
 
 [dependencies]
 ambient_api = { git = "https://github.com/AmbientRun/Ambient.git", tag = "v0.3.0-nightly-2023-10-02" }
+parking_lot = "0.12.1"
 
 [[bin]]
 name = "input_lag_tester_client"
